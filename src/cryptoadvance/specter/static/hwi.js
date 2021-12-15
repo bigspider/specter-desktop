@@ -104,7 +104,7 @@ class HWIBridge {
         });
     }
 
-    async signTx(device, psbt, passphrase="") {
+    async signTx(device, psbt, passphrase="", fingerprint="", hmac="", wallet_name="", policy_map="", keys_info=[]) {
         /**
             Sends the current psbt to the server to relay to the HWI wallet.
         **/
@@ -115,7 +115,12 @@ class HWIBridge {
             device_type: device.type,
             path: device.path,
             passphrase: device.passphrase,
-            psbt: psbt
+            fingerprint: fingerprint,
+            psbt: psbt,
+            hmac: hmac,
+            wallet_name: wallet_name,
+            policy_map: policy_map,
+            keys_info: JSON.stringify(keys_info)
         });
     }
 
@@ -175,7 +180,7 @@ class HWIBridge {
     }
 
 
-    async displayAddress(device, descriptor, passphrase=""){
+    async displayAddress(device, descriptor, passphrase="", hmac="", wallet_name="", policy_map="", keys_info=[]){
         if(!('passphrase' in device)){
             device.passphrase = passphrase;
         }
@@ -184,6 +189,10 @@ class HWIBridge {
             path: device.path,
             passphrase: device.passphrase,
             descriptor: JSON.parse(descriptor),
+            hmac: hmac,
+            wallet_name: wallet_name,
+            policy_map: policy_map,
+            keys_info: JSON.stringify(keys_info)
         });
     }
 }

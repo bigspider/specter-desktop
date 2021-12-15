@@ -11,6 +11,10 @@
     {% for device in wallet.devices if device.hwi_support %}
         {% set supports_hwi = supports_hwi.append(device) %}
     {% endfor %}
+    {% set supports_policy_registration = [] %}
+    {% for device in wallet.devices if device.supports_policy_registration %}
+        {% set supports_policy_registration = supports_policy_registration.append(device) %}
+    {% endfor %}
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         .addresses-table {
@@ -147,8 +151,8 @@
                 </th>
                 <th value="amount" class="amount-header optional">{{ _("Amount") }}<div class="amount-arrow">
                 </th>
-                {% if supports_hwi != [] and (supports_hwi_multisig_display_address != [] or not wallet.is_multisig) %}
-					<th class="optional"></th>	
+                {% if (supports_hwi != [] and (supports_hwi_multisig_display_address != [] or not wallet.is_multisig)) or supports_policy_registration %}
+					<th class="optional"></th>
                 {% endif %}
                 <th style="width: 50px; padding: 10px;">
                     <button type="button" class="export-btn btn" style="width: 50px;">{{ _("Export") }}</button>
@@ -163,8 +167,8 @@
             <td class="optional"></td>
             <td class="optional"></td>
             <td class="optional"></td>
-            {% if supports_hwi != [] and (supports_hwi_multisig_display_address != [] or not wallet.is_multisig) %}
-                <th class="optional"></th>	
+            {% if (supports_hwi != [] and (supports_hwi_multisig_display_address != [] or not wallet.is_multisig)) or supports_policy_registration %}
+                <th class="optional"></th>
             {% endif %}
             <td></td>
         </tr>
@@ -459,6 +463,7 @@
                             <address-row 
                                 data-verify-qr="{{ supports_qr_code_verify != [] }}"
                                 data-verify-hwi="{{ supports_hwi != [] and (supports_hwi_multisig_display_address != [] or not wallet.is_multisig) }}"
+                                data-supports-policy-registration="{{ supports_policy_registration != [] }}"
                                 data-btc-unit="${this.btcUnit ? this.btcUnit : 'btc'}"
                                 data-price="${this.price ? this.price : 0}"
                                 data-symbol="${this.symbol ? this.symbol : ''}"
@@ -537,6 +542,7 @@
             <address-data
             data-verify-qr="{{ supports_qr_code_verify != [] }}"
             data-verify-hwi="{{ supports_hwi != [] and (supports_hwi_multisig_display_address != [] or not wallet.is_multisig) }}"
+            data-supports-policy-registration="{{ supports_policy_registration != [] }}"
             data-used="${addressData.used}"
             data-utxo="${addressData.utxo}"
             data-amount="${amount}"

@@ -74,10 +74,15 @@
 			{% for device in wallet.devices if device.hwi_support %}
 				{% set supports_hwi = supports_hwi.append(device) %}
 			{% endfor %}
-			{% if supports_hwi != [] and (supports_hwi_multisig_display_address != [] or not wallet.is_multisig) %}
+			{% set supports_policy_registration = [] %}
+			{% for device in wallet.devices if device.supports_policy_registration %}
+				{% set supports_policy_registration = supports_policy_registration.append(device) %}
+			{% endfor %}
+			{% if (supports_hwi != [] and (supports_hwi_multisig_display_address != [] or not wallet.is_multisig) or supports_policy_registration != []) %}
 				<button type="button" onclick='displayAddressOnDevice(`{{ wallet.address }}`, `{{ wallet.get_descriptor()|tojson }}`)' class="btn centered optional">{{ _("Display address on device") }}</button><br>
 				{% if wallet.is_multisig %}
-					<p class="note center optional">{{ _("Multsig address on-device display is only available for BitBox02, ColdCard, KeepKey, Specter, and Trezor devices.") }}</p>
+					<p class="note center optional">{{ _("Multisig address on-device display is only available for BitBox02, ColdCard, KeepKey, Specter, and Trezor devices.") }}</p>
+					<p class="note center optional">{{ _("Now on Ledger, too!") }}</p>
 				{% endif %}
 			{% endif %}
 		</form>

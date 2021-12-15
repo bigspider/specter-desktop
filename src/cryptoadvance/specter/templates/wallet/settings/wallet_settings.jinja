@@ -30,12 +30,21 @@
 		{% endif %}
 		<div class="row overflow">
 			{% for device in wallet.devices %}
+				<div>
 				<a href="{{ url_for('devices_endpoint.device', device_alias=device.alias) }}" style="text-decoration: none;">
 					<div class="small-card radio">
 						<img src="{{ url_for('static', filename='img/devices/' ~ device.icon) }}" width="18px">
 						{{ device.name }}
 					</div>
 				</a>
+					{% if wallet.is_multisig and device.supports_policy_registration %}
+						{% if not wallet.hmac %}
+							<button id="btn_register_policy" type="button" class="btn centered" style="width:50%" onclick="registerClicked('{{ device.alias }}')">{{ _("Register<br>policy") }}</button>
+						{% else %}
+							<button type="button" class="btn centered" style="width:50%" onclick="forgetClicked('{{ device.alias }}')">{{ _("Forget") }}</button>
+						{% endif %}
+					{% endif %}
+				</div>
 			{% endfor %}
 		</div>
 		<button onclick="toggleKeysList()" id="toggle_keys_list" type="button" class="btn centered padded">{{ _("Show keys details") }}</button>
@@ -464,6 +473,82 @@
 					break;
             }
         }
+
+		async function registerClicked(device_alias) {
+			// hack: device_alias not available in jinja here
+			const url = `{{ url_for('wallets_endpoint.register_policy', wallet_alias=wallet.alias, device_alias="___placeholder___") }}`
+				.replace("___placeholder___", device_alias);
+
+			const formData = new FormData();
+			formData.append('descriptor', '{{wallet.descriptor}}');
+			formData.append('csrf_token', '{{ csrf_token() }}');
+
+			const btn_register_policy = document.getElementById("btn_register_policy");
+
+			btn_register_policy.disabled = true;
+			btn_register_policy.innerHTML = `{{ _("Follow instructions<br>on your device") }}`;
+
+			try {
+				
+				const response = await fetch(
+					url,
+					{
+						method: 'POST',
+						body: formData
+					}
+				);
+				if(response.status != 200){
+					showError(await response.text());
+					btn_register_policy.disabled = false;
+					btn_register_policy.innerHTML = `{{ _("Register<br>policy") }}`;
+					return;
+				}
+				const jsonResponse = await response.json();
+
+				btn_register_policy.disabled = false;
+				btn_register_policy.innerHTML = `{{ _("Register<br>policy") }}`;
+				location.reload();
+
+				return jsonResponse.success;
+			} catch(e) {
+				console.log("Caught error: ", e);
+				showError(e);
+				btn_register_policy.disabled = false;
+				btn_register_policy.innerHTML = `{{ _("Register<br>policy") }}`;
+				return false;
+			}
+		}
+
+		async function forgetClicked(device_alias) {
+			// hack: device_alias not available in jinja here
+			const url = `{{ url_for('wallets_endpoint.forget_policy', wallet_alias=wallet.alias, device_alias="___placeholder___") }}`
+				.replace("___placeholder___", device_alias);
+
+			const formData = new FormData();
+			formData.append('csrf_token', '{{ csrf_token() }}');
+			try {
+				const response = await fetch(
+					url,
+					{
+						method: 'POST',
+						body: formData
+					}
+				);
+				if(response.status != 200){
+					showError(await response.text());
+					return;
+				}
+				const jsonResponse = await response.json();
+
+				location.reload();
+
+				return jsonResponse.success;
+			} catch(e) {
+				console.log("Caught error: ", e);
+				showError(e);
+				return false;
+			}
+		}
 	</script>
 
 {% endblock %}

@@ -23,7 +23,7 @@
         let devices = await enumerate(deviceTypes);
         return devices;
     }
-    async function signTx(combine, deviceType, psbt, fingerprint=null){
+    async function signTx(combine, deviceType, psbt, fingerprint=null, hmac="", wallet_name="", policy_map="",keys_info=[]){
         let devices = await getConnectedWalletDevices([deviceType]);
         if(devices == null || devices.length == 0){
             return;
@@ -41,7 +41,7 @@
         showHWIProgress(`{{ _("Signing transaction...") }}`, `{{ _("Confirm on your") }} ${capitalize(device.type)}.`);
         let signedTx = null;
         try {
-            signedTx = await hwi.signTx(device, psbt);
+            signedTx = await hwi.signTx(device, psbt, "", fingerprint, hmac, wallet_name, policy_map, keys_info);
         } catch (error) {
             handleHWIError(error);
             return;
@@ -57,7 +57,7 @@
     async function displayAddressOnDevice(address, descriptor){
         let supportedDevices = [
             {% for device in wallet.devices %}
-                {% if device.supports_hwi_multisig_display_address or not wallet.is_multisig %}
+                {% if (device.supports_hwi_multisig_display_address or device.supports_policy_registration) or not wallet.is_multisig %}
                     `{{ device.device_type }}`,
                 {% endif %}
             {% endfor %}
@@ -75,8 +75,43 @@
         document.getElementById('expected_address').innerText = address;
         showPageOverlay('hwi_display_address');        
         let result = null;
+
+
+        let hmac_by_fingerprint = new Map();
+        let policy_name_by_fingerprint = new Map();
+        let policymap_by_fingerprint = new Map();
+        let keysinfo_by_fingerprint = new Map();
+        {% for device in wallet.devices %}
+            {% for fpr, hmac in wallet.hmac.items() %}
+                hmac_by_fingerprint.set('{{ fpr }}', '{{ wallet.hmac[fpr] }}');
+                policy_name_by_fingerprint.set('{{ fpr }}', '{{ wallet.policy[fpr].name }}');
+                policymap_by_fingerprint.set('{{ fpr }}', '{{ wallet.policy[fpr].policy_map }}');
+                keysinfo_by_fingerprint.set('{{ fpr }}', '{{ wallet.policy[fpr].keys_info }}');
+            {% endfor %}
+        {% endfor %}
+
+        function htmlDecode(input) {
+            var doc = new DOMParser().parseFromString(input, "text/html");
+            return doc.documentElement.textContent;
+        }
+
+        let hmac, wallet_name, policy_map, keys_info;
+        if (!hmac_by_fingerprint.has(device.fingerprint)) {
+            hmac = "";
+            wallet_name = "";
+            policy_map = "";
+            keys_info = [];
+        } else {
+            hmac = hmac_by_fingerprint.get(device.fingerprint);
+            wallet_name = policy_name_by_fingerprint.get(device.fingerprint);
+            policy_map = policymap_by_fingerprint.get(device.fingerprint);
+
+            // TODO: this is most certainly bad, don't do this
+            keys_info = JSON.parse(htmlDecode(keysinfo_by_fingerprint.get(device.fingerprint)));
+        }
+
         try {
-            result = await hwi.displayAddress(device, descriptor);
+            result = await hwi.displayAddress(device, descriptor, "", hmac, wallet_name, policy_map, keys_info);
         } catch (error) {
             handleHWIError(error);
             return null;

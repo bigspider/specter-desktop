@@ -61,6 +61,7 @@
         connectedCallback() {
             this.isVerifyQR = this.getAttribute('data-verify-qr') == 'True';
             this.isVerifyHwi = this.getAttribute('data-verify-hwi') == 'True';
+            this.supportsPolicyRegistration = this.getAttribute('data-supports-policy-registration') == 'True';
             this.addressData = JSON.parse(this.getAttribute('data-address'));
             this.wallet = this.getAttribute('data-wallet');
             this.btcUnit = this.getAttribute('data-btc-unit');
@@ -90,7 +91,7 @@
 
             this.amount = parseFloat(this.addressData.amount.toFixed(8));
 
-            if (!this.isVerifyQR && !this.isVerifyHwi) {
+            if (!this.isVerifyQR && !this.isVerifyHwi && !this.supportsPolicyRegistration) {
                 this.verify.classList.add('hidden');
             } else {
                 this.verify.onclick = async () => {

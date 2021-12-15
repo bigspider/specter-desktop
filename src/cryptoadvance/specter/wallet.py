@@ -161,6 +161,11 @@ class Wallet:
         ):
             self.save_to_file()
 
+        # dicts keyed by fingerprint.
+        # TODO: the fingerprint is not a stable enough ID
+        self.hmac = {}
+        self.policy = {}
+
     @property
     def recv_descriptor(self):
         return add_checksum(str(self.descriptor.branch(0)))

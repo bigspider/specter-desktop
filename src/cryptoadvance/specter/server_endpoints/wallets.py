@@ -41,6 +41,9 @@ from ..util.price_providers import get_price_at
 from ..util.tx import decoderawtransaction
 from ..managers.wallet_manager import purposes
 
+import re
+import ledger_bitcoin
+
 rand = random.randint(0, 1e32)  # to force style refresh
 
 # Setup endpoint blueprint
@@ -1699,3 +1702,80 @@ def process_addresses_list(
         page_count = 1
 
     return {"addressesList": addresses_list, "pageCount": page_count}
+
+
+
+################## Custom endpoint for policy registration #######################
+
+# A regex that matches key expressions in a modified descriptor with the /** notation.
+key_info_re = regex = r"\[[a-f0-9]{8}(?:\/[0-9]+[h,']?)*\][0-9a-zA-Z]+\/\*\*"
+
+def normalize_key_info(key_info: str) -> str:
+    """Makes sure that the key_info uses ' and not h for hardened derivations"""
+    tmp = key_info.split("]")
+    tmp[0] = tmp[0].replace("h", "'")
+    return "]".join(tmp)
+
+def get_policy_from_descriptor(name: str, descriptor: str) -> ledger_bitcoin.PolicyMapWallet:
+    """Builds the PolicyMapWallet from the name and the standard descriptor"""
+    descriptor = descriptor.split("#")[0]
+
+    # use /** syntax instead of /<0;1>/* or /{0,1}/*
+    descriptor = descriptor.replace("/<0;1>/*", "/**")
+    descriptor = descriptor.replace("/{0,1}/*", "/**")
+
+    keys: list[str] = []
+    def count_keys(match_obj: re.Match) -> str:
+        nonlocal keys
+        keys.append(match_obj.string[match_obj.start():match_obj.end()])
+        return f"@{len(keys) - 1}"
+    policy_map = re.sub(key_info_re, count_keys, descriptor)
+    keys = list(map(normalize_key_info, keys))
+    return ledger_bitcoin.PolicyMapWallet(name, policy_map, keys)
+
+@wallets_endpoint.route("/wallet/<wallet_alias>/<device_alias>/register_policy", methods=["POST"])
+@login_required
+def register_policy(wallet_alias, device_alias):
+    try:
+        wallet = app.specter.wallet_manager.get_by_alias(wallet_alias)
+        descriptor = request.form.get("descriptor", "")
+
+        # TODO: this works only if the correct device is connected and unlocked
+        with ledger_bitcoin.createClient(chain=ledger_bitcoin.Chain.TEST) as client:
+            wallet_policy = get_policy_from_descriptor(wallet.name, descriptor) #  TODO: check if wallet.name is valid
+            _, hmac = client.register_wallet(wallet_policy)
+
+            fpr = client.get_master_fingerprint().hex()
+            wallet.hmac[fpr] = hmac.hex()
+            wallet.policy[fpr] = wallet_policy
+
+        return jsonify(
+            descriptor=descriptor,
+            hmac=hmac.hex()
+        )
+    except Exception as e:
+        handle_exception(e)
+        return jsonify(
+            success=False,
+            error=_("Exception trying to register policy: Error: {}").format(e),
+        )
+
+@wallets_endpoint.route("/wallet/<wallet_alias>/<device_alias>/forget_policy", methods=["POST"])
+@login_required
+def forget_policy(wallet_alias, device_alias):
+    wallet = app.specter.wallet_manager.get_by_alias(wallet_alias)
+    try:
+        with ledger_bitcoin.createClient(chain=ledger_bitcoin.Chain.TEST) as client:
+            fpr = client.get_master_fingerprint().hex()
+            del wallet.hmac[fpr]
+            del wallet.policy[fpr]
+
+        return jsonify(
+            success=True,
+        )
+    except KeyError as e:
+        handle_exception(e)
+        return jsonify(
+            success=False,
+            error=_("Exception trying to forget policy: Error: {}").format(e),
+        )

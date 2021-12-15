@@ -32,6 +32,8 @@ class Device:
     liquid_support = False
     taproot_support = False
 
+    supports_policy_registration = False
+
     def __init__(self, name, alias, keys, blinding_key, fullpath, manager):
         """
         From child classes call super().__init__ and also set

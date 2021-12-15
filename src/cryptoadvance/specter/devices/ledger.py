@@ -7,5 +7,7 @@ class Ledger(HWIDevice):
     name = "Ledger"
     icon = "ledger_icon.svg"
 
+    supports_policy_registration = True
+
     def create_psbts(self, base64_psbt, wallet):
-        return {"hwi": wallet.fill_psbt(base64_psbt, non_witness=False)}
+        return {"hwi": wallet.fill_psbt(base64_psbt, non_witness=True)}

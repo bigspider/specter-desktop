@@ -25,6 +25,9 @@ from hwilib.devices.bitbox02 import Bitbox02Client
 from .devices.hwi.specter_diy import SpecterClient
 from .devices.hwi.jade import JadeClient
 
+import ledger_bitcoin
+import json
+
 logger = logging.getLogger(__name__)
 
 hwi_classes = [cls for cls in device_classes if cls.hwi_support]
@@ -275,36 +278,64 @@ class HWIBridge(JSONRPC):
         fingerprint=None,
         passphrase="",
         chain="",
+        hmac="",
+        wallet_name="",
+        policy_map="",
+        keys_info=""
     ):
         if descriptor == "":
             raise Exception("Descriptor must not be empty")
 
-        with self._get_client(
-            device_type=device_type,
-            fingerprint=fingerprint,
-            path=path,
-            passphrase=passphrase,
-            chain=chain,
-        ) as client:
-            if descriptor.get("xpubs_descriptor", None):
-                try:
-                    status = hwi_commands.displayaddress(
-                        client, desc=descriptor["xpubs_descriptor"]
-                    )
-                except Exception:
+        if hmac == "":
+            with self._get_client(
+                device_type=device_type,
+                fingerprint=fingerprint,
+                path=path,
+                passphrase=passphrase,
+                chain=chain,
+            ) as client:
+                if descriptor.get("xpubs_descriptor", None):
+                    try:
+                        status = hwi_commands.displayaddress(
+                            client, desc=descriptor["xpubs_descriptor"]
+                        )
+                    except Exception:
+                        status = hwi_commands.displayaddress(
+                            client, desc=descriptor.get("descriptor", "")
+                        )
+                else:
                     status = hwi_commands.displayaddress(
                         client, desc=descriptor.get("descriptor", "")
                     )
-            else:
-                status = hwi_commands.displayaddress(
-                    client, desc=descriptor.get("descriptor", "")
-                )
-            if "error" in status:
-                raise Exception(status["error"])
-            elif "address" in status:
-                return status["address"]
-            else:
-                raise Exception("Failed to validate address on device: Unknown Error")
+                if "error" in status:
+                    raise Exception(status["error"])
+                elif "address" in status:
+                    return status["address"]
+                else:
+                    raise Exception("Failed to validate address on device: Unknown Error")
+        else:
+            with ledger_bitcoin.createClient(chain=ledger_bitcoin.Chain.TEST) as client:
+                keys_info = json.loads(keys_info)
+                wallet = ledger_bitcoin.PolicyMapWallet(wallet_name, policy_map, keys_info)
+
+                desc = descriptor.get("descriptor", "")
+                if desc == "":
+                    raise Exception("Could not find address descriptor")
+                # Extract the change and address from the first key origin info block
+                key_origin_start = desc.index('[')
+                key_origin_end = desc.index(']')
+                if key_origin_end <= key_origin_start:
+                    raise Exception("Could not parse address descriptor")
+
+                key_origin = desc[key_origin_start + 1:key_origin_end]
+                key_origin_parts = key_origin.split("/")
+                if len(key_origin_parts) < 2:
+                    raise Exception("Could not parse address descriptor")
+
+                change = int(key_origin_parts[-2])
+                addr_index = int(key_origin_parts[-1])
+
+                return client.get_wallet_address(wallet, bytes.fromhex(hmac), change, addr_index, True)
 
     @locked(hwilock)
     def sign_tx(
@@ -315,27 +346,60 @@ class HWIBridge(JSONRPC):
         fingerprint=None,
         passphrase="",
         chain="",
+        hmac="",
+        wallet_name="",
+        policy_map="",
+        keys_info=""
     ):
         if psbt == "":
             raise Exception("PSBT must not be empty")
-        with self._get_client(
-            device_type=device_type,
-            fingerprint=fingerprint,
-            path=path,
-            passphrase=passphrase,
-            chain=chain,
-        ) as client:
-            if is_liquid(chain):
-                if not hasattr(client, "sign_pset"):
-                    raise Exception("Device can't sign liquid transaction")
-                return client.sign_pset(psbt)
-            status = hwi_commands.signtx(client, psbt)
-            if "error" in status:
-                raise Exception(status["error"])
-            elif "psbt" in status:
-                return status["psbt"]
-            else:
-                raise Exception("Failed to sign transaction with device: Unknown Error")
+
+        if hmac == "":
+            with self._get_client(
+                device_type=device_type,
+                fingerprint=fingerprint,
+                path=path,
+                passphrase=passphrase,
+                chain=chain,
+            ) as client:
+                if is_liquid(chain):
+                    if not hasattr(client, "sign_pset"):
+                        raise Exception("Device can't sign liquid transaction")
+                    return client.sign_pset(psbt)
+                status = hwi_commands.signtx(client, psbt)
+                if "error" in status:
+                    raise Exception(status["error"])
+                elif "psbt" in status:
+                    return status["psbt"]
+                else:
+                    raise Exception("Failed to sign transaction with device: Unknown Error")
+        else:
+            with ledger_bitcoin.createClient(chain=ledger_bitcoin.Chain.TEST) as client:
+                keys_info = json.loads(keys_info)
+
+                wallet = ledger_bitcoin.PolicyMapWallet(wallet_name, policy_map, keys_info)
+
+                psbt_obj = ledger_bitcoin.client.PSBT()
+                psbt_obj.deserialize(psbt)
+
+                result_signatures = client.sign_psbt(psbt_obj, wallet, bytes.fromhex(hmac))
+
+                # Figure out which pubkey will be used for each input
+                pubkeys = {}
+
+                for input_num, psbt_in in enumerate(psbt_obj.inputs):
+                    for key, origin in psbt_in.hd_keypaths.items():
+                        if origin.fingerprint.hex() == fingerprint:
+                            # TODO: might want to check for fingerprint collisions
+                            pubkeys[input_num] = key
+
+                for idx, sig in result_signatures.items():
+                    psbt_in = psbt_obj.inputs[idx]
+
+                    pubkey = pubkeys[idx]
+                    psbt_in.partial_sigs[pubkey] = sig
+
+                return psbt_obj.serialize()
 
     @locked(hwilock)
     def sign_message(
