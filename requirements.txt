@@ -181,6 +181,7 @@ hidapi==0.10.1 \
     # via
     #   bitbox02
     #   hwi
+    #   ledger-bitcoin
 hwi==2.0.1 \
     --hash=sha256:1a49ec86d4770239408e74c87acdd15b9f72271fbdddf66acd935f068bbf115d \
     --hash=sha256:cba5e254fcf7ae1b523ec1f0eab693b401d4b3cd949b35a4557a106a98065c23
@@ -205,6 +206,14 @@ jinja2==2.11.3 \
     # via
     #   flask
     #   flask-babel
+ledger_bitcoin[hid]==0.0.1 \
+    --hash=sha256:5e8680456c4761879b0884a489aa76e70662489624165f2457a07e177e6307a9 \
+    --hash=sha256:8602366318e7977cf693ab84904bc5ce28531911f816d7a23f578b37ace130f8
+    # via -r requirements.in
+ledgercomm==1.1.0 \
+    --hash=sha256:06770af25015fb40d2f0e9a0ea0f5a081459573cd023f336ff1796e85a292697 \
+    --hash=sha256:a85c16d3e2967ae6c0fa1bc9da2d99f766c166f32cd4d52a7e3537f2c849bf5f
+    # via ledger-bitcoin
 libusb1==1.9.2 \
     --hash=sha256:27aec6aa1ff9ca845d0035023f3cf39710afac56903c51cd96a95404d064189e \
     --hash=sha256:2dff68819350bf8a8c157c7fa40d3efc741cb57868687d1714c8125ee99e8ac8 \
@@ -368,6 +377,7 @@ typing-extensions==3.10.0.0 \
     # via
     #   bitbox02
     #   hwi
+    #   ledger-bitcoin
 urllib3==1.26.5 \
     --hash=sha256:753a0374df26658f99d826cfe40394a686d05985786d946fbe4165b5148f5a7c \
     --hash=sha256:a7acd0977125325f516bda9735fa7142b909a8d01e8b2e4c8108d0984e6e0098
